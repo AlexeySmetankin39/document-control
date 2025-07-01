@@ -6,7 +6,7 @@ import os
 import re
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QLabel, 
                              QInputDialog, QDialog, QVBoxLayout, QHBoxLayout,
-                             QTableWidget, QTableWidgetItem, QDialogButtonBox)
+                             QTableWidget, QTableWidgetItem, QDialogButtonBox, QFileDialog)
 from PyQt6.QtCore import Qt
 
 # Ключевые слова для поиска столбцов
@@ -15,20 +15,18 @@ COST_KEYWORDS = ['Цена, RUB', 'RBL_PRICE', 'Цена', 'Цена за 1 шт
 ARTICLE_KEYWORDS = ['Номенклатурный номер', 'NOM_N', 'Код товара','Артикул']
 QUANTITY_KEYWORDS = ['Кол-во', 'NUMBER_OF', 'Кол-во, шт.', 'Количество' ]
 
-def select_files():
-    """Открывает диалоговое окно выбора файлов"""
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    file_paths = filedialog.askopenfilenames(
-        title='Выберите файлы',
-        filetypes=[
-            ("CSV файлы", "*.csv"),
-            ("Excel файлы", "*.xlsx *.xls"),
-            ("Все файлы", "*.*")
-        ]
-    )
-    return file_paths if file_paths else None
+def select_files(main_window):
+    """Открывает диалоговое окно выбора файлов с помощью QFileDialog (PyQt6)"""
+    file_dialog = QFileDialog(main_window)
+    file_dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+    file_dialog.setNameFilters([
+        "Все файлы (*.*)",
+        "CSV файлы (*.csv)",
+        "Excel файлы (*.xlsx *.xls)"
+    ])
+    if file_dialog.exec():
+        return file_dialog.selectedFiles()
+    return None
 
 def find_header_row(df, keywords):
     """Находит строку с заголовками в DataFrame"""

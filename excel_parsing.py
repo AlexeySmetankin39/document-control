@@ -4,7 +4,9 @@ import tkinter as tk
 import pandas as pd
 import os
 import re
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QInputDialog
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QLabel, 
+                             QInputDialog, QDialog, QVBoxLayout, QHBoxLayout,
+                             QTableWidget, QTableWidgetItem, QDialogButtonBox)
 from PyQt6.QtCore import Qt
 
 # Ключевые слова для поиска столбцов
@@ -81,16 +83,17 @@ def detect_shop(file_path, df, main_window):
             return "ЭТМ"
     
     # Если ни одно правило не сработало - показать диалоговое окно
+    return get_shop_name_from_user(main_window, filename)[0] or name_no_ext
+
+def get_shop_name_from_user(main_window, filename):
+    """Запрашивает название магазина у пользователя"""
     shop_name, ok = QInputDialog.getText(
         main_window, 
         "Не удалось определить магазин",
         f"Введите название магазина для файла:\n{filename}",
-        text=name_no_ext
+        text=os.path.splitext(filename)[0]
     )
-    
-    if ok and shop_name.strip():
-        return shop_name
-    return name_no_ext
+    return shop_name, ok
 
 def format_number(value):
     """Форматирует число, убирая .0 для целых чисел"""
@@ -103,8 +106,8 @@ def format_number(value):
     except ValueError:
         return str(value)
 
-def process_files(file_paths, main_window):
-    """Обрабатывает все выбранные файлы и извлекает данные"""
+def process_files_with_shops(file_paths, main_window, file_shop_map):
+    """Обрабатывает файлы с использованием предопределенных магазинов"""
     all_products = []
     all_costs = []
     all_articles = []
@@ -121,14 +124,16 @@ def process_files(file_paths, main_window):
     
     for i, file_path in enumerate(file_paths):
         try:
+            filename = os.path.basename(file_path)
+            shop_name = file_shop_map.get(filename, filename)
+            
             # Обновляем статус для каждого файла
-            main_window.label.setText(f"Обработка файла {i+1}/{len(file_paths)}: {os.path.basename(file_path)}")
+            main_window.label.setText(f"Обработка файла {i+1}/{len(file_paths)}: {filename}")
             QApplication.processEvents()  # Обновляем интерфейс
             
             df = read_data(file_path)
-            shop_name = detect_shop(file_path, df, main_window)
             print(f"\nОбработка файла: {file_path}")
-            print(f"Определен магазин: {shop_name}")
+            print(f"Используется магазин: {shop_name}")
             
             # Поиск столбцов по ключевым словам
             name_col = None

@@ -2,7 +2,7 @@ import excel_parsing as ep
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QLabel, 
                              QDialog, QVBoxLayout,
-                             QTableWidget, QTableWidgetItem, QDialogButtonBox, QFileDialog, QFrame)
+                             QTableWidget, QTableWidgetItem, QDialogButtonBox, QFileDialog, QFrame,QComboBox)
 from PyQt6.QtCore import Qt
 from datetime import datetime
 import pandas as pd
@@ -11,12 +11,21 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side
+from docx import Document
+import word_parsing as wp
 
 MONTHS_RU = {
     1: "январь", 2: "февраль", 3: "март", 4: "апрель",
     5: "май", 6: "июнь", 7: "июль", 8: "август",
     9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь"
 }
+
+work_list_filepath = "work_list.xlsx" # Имя Ecxel файла с перечисленными работами
+work_list = []
+dds_list = []
+selected_work = ""
+
+sub_map = { } # Хранит параграф и позицию найденных подстрок в документе
 
 class ShopConfirmationDialog(QDialog):
     def __init__(self, file_shop_map, parent=None):
@@ -53,9 +62,9 @@ class ShopConfirmationDialog(QDialog):
 class MainWindow(QMainWindow): # Класс окна для подтверждения магазинов
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Генератор заявок на закупку, лаб. РТО")
-        self.setGeometry(300, 300, 600, 800)
-        self.setFixedSize(600, 800)
+        self.setWindowTitle("Генератор заявок на закупку, лаб. РТО (alpha 0.1)")
+        self.setGeometry(300, 300, 600, 600)
+        self.setFixedSize(600, 600)
         
 
         self.label_hello = QLabel(
@@ -93,6 +102,32 @@ class MainWindow(QMainWindow): # Класс окна для подтвержде
         self.line.setFrameShape(QFrame.Shape.HLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
         self.line.setStyleSheet("background-color: black;")  # делаем линию жирной и черной
+
+        self.label_select_work = QLabel("Выберите наименование работы:",self)
+        self.label_select_work.setGeometry(40,420,510,20)
+        self.label_select_work.setStyleSheet("font-size: 14px;")
+
+        self.work_qbox = QComboBox(self)
+        self.work_qbox.addItems(work_list)
+        self.work_qbox.setGeometry(40,460,510,20)
+        self.work_qbox.setVisible(True)
+        self.work_qbox.currentTextChanged.connect(self.text_changed)
+        self.work_qbox.currentIndexChanged.connect( self.index_changed)
+
+        self.generated_word_but = QPushButton("Создать Word", self)
+        self.generated_word_but.setGeometry(40, 520, 150, 40)
+        self.generated_word_but.setStyleSheet("font-size: 14px;")
+        self.generated_word_but.clicked.connect(self.word_file_generated)
+
+
+    def text_changed(self, s):  #выбор работы из списка
+        global selected_work
+        selected_work = s
+
+    def index_changed(self, i): #присваивание статьи ДДС по индексу работы из списка
+        global selected_dds
+        if 0 <= i < len(dds_list):
+            selected_dds = dds_list[i]
 
 
     def process_files(self):
@@ -356,8 +391,47 @@ class MainWindow(QMainWindow): # Класс окна для подтвержде
             self.label.setText(f"Файл успешно сохранён в:\n{dest_path}")
         except Exception as e:
             self.label.setText(f"Ошибка при сохранении: {str(e)}")
+    
+
+    def word_file_generated(self):
+        from datetime import datetime
+        try:
+            # Получаем текущую дату для подстановки
+            current_date = datetime.now().strftime("%d.%m.%Y")
+            
+            # Генерируем Word-файл
+            generated_file_path = wp.generated_wfile(
+                doc=document,
+                substring_map=sub_map, 
+                work_name=selected_work, 
+                dds=selected_dds,
+                date_str=current_date
+            )
+            
+            # Показываем сообщение о успешной генерации
+            self.label.setText(f"Word файл сгенерирован:\n{generated_file_path}")
+        except Exception as e:
+            self.label.setText(f"Ошибка при генерации Word: {str(e)}")
+            print(f"Ошибка: {str(e)}")
 
 if __name__ == "__main__":  
+    work_list_filepath = "work_list.xlsx"
+    data_from_excel = ep.read_data(work_list_filepath)
+    work_list = data_from_excel.iloc[:, 0].tolist()
+    selected_work = work_list[0] if work_list else ""
+
+    dds_list = data_from_excel.iloc[:, 1].tolist()
+    selected_dds = dds_list[0] if dds_list else ""
+
+    # Загружаем документ только если файл существует
+    if os.path.exists("sample.docx"):
+        document = Document("sample.docx")
+        sub_map = wp.searc_text_position(document)
+    else:
+        document = None
+        sub_map = {}
+        print("Предупреждение: файл sample.docx не найден")
+
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
